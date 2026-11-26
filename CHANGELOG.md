@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `npm run build:site` assembles the demo as a static site in `site/`, with
+  long-lived caching for the film's parts.
+
 ### Fixed
 
 - CI runs on pushes to `master`, the default branch.
