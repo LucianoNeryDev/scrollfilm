@@ -1,0 +1,78 @@
+:root {
+  --bg: #0b0b0c;
+  --ink: #e8e4dc;
+  --muted: #9a958c;
+  --line: rgba(232, 228, 220, 0.16);
+  --accent: #e2b866;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { background: var(--bg); color: var(--ink); }
+body {
+  margin: 0;
+  font: 400 17px/1.55 ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+a { color: var(--ink); text-underline-offset: 3px; }
+a:hover { color: var(--accent); }
+
+.intro, .outro { max-width: 44rem; margin: 0 auto; padding: 18vh 24px 14vh; }
+.intro { min-height: 100svh; display: flex; flex-direction: column; justify-content: center; }
+.kicker {
+  margin: 0 0 1rem; font: 600 13px/1 ui-monospace, "SF Mono", Menlo, monospace;
+  letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent);
+}
+h1 { margin: 0 0 1.2rem; font-size: clamp(2.2rem, 6vw, 3.8rem); line-height: 1.04; letter-spacing: -0.02em; font-weight: 650; }
+h2 { margin: 0 0 1rem; font-size: 1.6rem; letter-spacing: -0.01em; }
+.intro p { max-width: 34rem; color: var(--muted); font-size: 1.1rem; margin: 0; }
+.hint { margin-top: 3rem !important; font: 500 13px/1 ui-monospace, Menlo, monospace; letter-spacing: 0.1em; }
+
+.track { position: relative; height: 900vh; }
+.stage { position: sticky; top: 0; height: 100vh; height: 100svh; overflow: hidden; }
+.film { display: block; width: 100%; height: 100%; background: #000; }
+
+.loading {
+  position: absolute; inset: 0; display: grid; place-items: center;
+  font: 500 14px/1 ui-monospace, Menlo, monospace; letter-spacing: 0.08em; color: var(--muted);
+  background: var(--bg); transition: opacity 0.6s;
+}
+.loading.is-done { opacity: 0; pointer-events: none; }
+.loading.is-error { color: var(--ink); padding: 24px; text-align: center; line-height: 1.5; }
+
+.hud {
+  position: absolute; top: max(16px, env(safe-area-inset-top)); right: 16px;
+  display: grid; grid-template-columns: auto; gap: 2px; padding: 10px 12px;
+  font: 500 12px/1.4 ui-monospace, "SF Mono", Menlo, monospace;
+  background: rgba(11, 11, 12, 0.62); border: 1px solid var(--line); border-radius: 8px;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  font-variant-numeric: tabular-nums;
+}
+.hud div { display: flex; justify-content: space-between; gap: 18px; }
+.hud span { color: var(--muted); }
+.hud b { font-weight: 600; }
+
+.notes p {
+  position: absolute; left: 16px; right: 16px; bottom: max(40px, calc(env(safe-area-inset-bottom) + 28px));
+  max-width: 30rem; margin: 0; padding: 14px 16px;
+  font-size: 1.02rem; line-height: 1.45;
+  background: rgba(11, 11, 12, 0.66); border: 1px solid var(--line); border-radius: 10px;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  opacity: 0; transform: translateY(12px); transition: opacity 0.35s, transform 0.35s;
+}
+.notes p.is-on { opacity: 1; transform: none; }
+@media (min-width: 720px) { .notes p { left: 32px; bottom: 48px; } }
+
+.bar { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: var(--line); }
+.bar span { display: block; height: 100%; background: var(--accent); transform-origin: 0 50%; transform: scaleX(0); }
+
+pre {
+  margin: 0 0 1rem; padding: 14px 16px; overflow-x: auto;
+  background: #141416; border: 1px solid var(--line); border-radius: 8px;
+  font: 13px/1.6 ui-monospace, "SF Mono", Menlo, monospace;
+}
+.outro p { color: var(--muted); }
+.credits { font-size: 0.82rem; line-height: 1.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  .notes p, .loading { transition: none; }
+}

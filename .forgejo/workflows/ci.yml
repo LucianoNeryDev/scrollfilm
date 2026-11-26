@@ -1,0 +1,30 @@
+# Unit tests and a real encode. The job runs in the runner's default image
+# (node:22-bookworm); ffmpeg comes from Debian. The browser test needs
+# Playwright's browsers and stays a local check (npm run test:browser).
+name: CI
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: docker
+    timeout-minutes: 10
+    steps:
+      - uses: https://code.forgejo.org/actions/checkout@v4
+
+      - name: Install ffmpeg
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq --no-install-recommends ffmpeg >/dev/null
+
+      - name: Test
+        run: npm test
+
+      - name: Encode a clip with the CLI
+        run: |
+          ffmpeg -v error -f lavfi -i testsrc=size=640x360:rate=30:duration=2 /tmp/clip.mp4
+          node bin/scrollfilm.js encode /tmp/clip.mp4 /tmp/film --width 320 --preset veryfast
+          node -e "const m = require('/tmp/film/manifest.json'); if (m.sizes.length !== 60 || m.width !== 320) process.exit(1)"
