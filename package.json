@@ -20,7 +20,8 @@
     "test": "node --test test/*.test.js",
     "demo:film": "node scripts/demo-film.js",
     "demo": "node scripts/serve.js demo",
-    "test:browser": "node scripts/browser-test.js"
+    "test:browser": "node scripts/browser-test.js",
+    "build:site": "node scripts/build-site.js"
   },
   "engines": {
     "node": ">=20"
