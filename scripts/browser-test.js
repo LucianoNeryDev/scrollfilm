@@ -44,10 +44,11 @@ async function check(name, type, launch = {}, query = '') {
       const s = await page.evaluate(() => window.film.state());
       seen.add(s.frame);
     }
-    const renderer = await page.evaluate(() => window.film.state().renderer);
+    const { renderer, backend } = await page.evaluate(() => window.film.state());
     if (errors.length) throw new Error(errors.join('; '));
+    if (backend !== (query.includes('video') ? 'video' : 'webcodecs')) throw new Error(`played through ${backend}`);
     if (seen.size < 6) throw new Error(`settled on ${seen.size} distinct frames, expected 6`);
-    console.log(`${name}: ok (${renderer}, frames ${[...seen].join(', ')})`);
+    console.log(`${name}: ok (${renderer}, ${backend}, frames ${[...seen].join(', ')})`);
     if (process.env.SHOTS) await page.screenshot({ path: `${process.env.SHOTS}/${name}.png` });
   } catch (e) {
     failed = true;
@@ -64,5 +65,8 @@ await run('chromium', chromium, { args: ['--use-angle=swiftshader', '--enable-un
 await run('chromium-2d', chromium, {}, '&canvas2d');
 await run('firefox', firefox);
 await run('webkit', webkit);
+// Without WebCodecs: the same film through Media Source Extensions and a <video>.
+await run('chromium-video', chromium, { args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader'] }, '&video');
+await run('firefox-video', firefox, {}, '&video');
 server.kill();
 process.exit(failed ? 1 : 0);

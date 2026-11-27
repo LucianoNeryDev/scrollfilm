@@ -49,8 +49,11 @@ and how it was measured.
 
 ## Quick start
 
-You need ffmpeg (with libx264) to encode, and a browser with WebCodecs to
-play: Chrome or Edge 94, Safari 16.4, Firefox 130, or later.
+You need ffmpeg (with libx264) to encode. To play, a browser with WebCodecs
+(Chrome or Edge 94, Safari 16.4, desktop Firefox 130, or later) gets the full
+player. Firefox for Android has no `VideoDecoder`: there the same film plays
+through Media Source Extensions and a `<video>`, smooth going forward and
+slower going back (see [`playback()`](https://git.lucianonery.dev/LucianoNeryDev/scrollfilm/src/branch/master/docs/api.md#playbacksource)).
 
 ```sh
 npm install scrollfilm
@@ -107,13 +110,14 @@ Add `?debug` to the demo's address to expose the player as `window.film`.
 
 ```sh
 npm test              # unit tests and an ffmpeg encode
-npm run test:browser  # the demo in Chromium (WebGL and 2D), Firefox and WebKit, headless
+npm run test:browser  # the demo in Chromium (WebGL and 2D), Firefox and WebKit, and through a <video>, headless
 ```
 
 ## Status
 
 The player has been used in production on one site, and has been measured on
-a low-end Android phone and in desktop Chromium, Firefox and WebKit. It hasn't
+a low-end Android phone (Chrome and Firefox) and in desktop Chromium, Firefox
+and WebKit. It hasn't
 yet been tried on a real iPhone. It is maintained for our own needs; issues
 and pull requests are welcome, with no support commitment.
 

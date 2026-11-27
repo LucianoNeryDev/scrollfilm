@@ -1,11 +1,12 @@
 # API
 
 ```js
-import { Film, supported, DEFAULTS, fitRect, framePos, timeAt, evenTimes } from 'scrollfilm';
+import { Film, supported, playback, DEFAULTS, fitRect, framePos, timeAt, evenTimes } from 'scrollfilm';
 ```
 
 The package is plain ES modules with no dependencies and no build step. It
-runs in browsers with WebCodecs. The encoder (`scrollfilm/encoder`) runs in
+plays with WebCodecs, or without it through Media Source Extensions and a
+`<video>` (see below). The encoder (`scrollfilm/encoder`) runs in
 Node 20 or later.
 
 ## `supported(source)`
@@ -14,10 +15,28 @@ Node 20 or later.
 if (!(await supported('/film/manifest.json'))) showFallback();
 ```
 
-This resolves to `true` when the browser has WebCodecs and can decode the
-film's codec at its size. Check it before creating a `Film`, and show a still
-or a plain `<video>` where it is `false`. `source` takes the same forms as in
-`load()`.
+This resolves to `true` when the browser can play the film one way or the
+other. Check it before creating a `Film`, and show a still where it is
+`false`. `source` takes the same forms as in `load()`.
+
+## `playback(source)`
+
+Resolves to how the film would play: `'webcodecs'`, `'video'` or `null`.
+
+- **`'webcodecs'`:** the browser decodes the film's codec at its size with
+  `VideoDecoder`. This is the full player: frames blended on the canvas,
+  smooth in both directions.
+- **`'video'`:** no `VideoDecoder`, but Media Source Extensions take H.264.
+  This is Firefox for Android, which has no `VideoDecoder`. The same parts
+  are wrapped in MP4 fragments and played by a `<video>` that the film puts
+  right under the canvas: same size, same place, same transform and opacity.
+  If the canvas is `position: static`, the film makes it `relative` so it
+  stays on top, and it clears the canvas's background. The canvas then only
+  draws the overlays. Going forward the video plays at a rate that follows
+  the film; going back or jumping it seeks, which is slower (on a Galaxy A14,
+  about 8 pictures a second against 22–34 forward). At rest it shows the
+  exact frame, as with WebCodecs.
+- **`null`:** neither.
 
 ## `new Film(canvas, options)`
 
@@ -47,6 +66,8 @@ Options (all optional, defaults in `DEFAULTS`):
 | `loads`, `tries` | `3`, `5` | Parts downloading at once, and attempts per part before the film plays without it. |
 | `reducedMotion` | from `prefers-reduced-motion` | `true` makes the film jump straight to the scroll position, with no spring. |
 | `forceCanvas2d` | `false` | Draws with a 2D canvas even where WebGL2 works, for testing the fallback. |
+| `forceVideo` | `false` | Plays through a `<video>` even where WebCodecs works, for testing that path. |
+| `groups` | `8` | Without WebCodecs: groups of pictures (a keyframe and the frames up to the next) kept in the video's buffer. |
 | `debug` | `false` | Counts refreshes and draws in `film.stats`. Set `film.stats.log = []` to record every draw. |
 
 ## Methods
@@ -98,7 +119,8 @@ when an overlay has changed.
 
 ### `film.state()`
 
-A snapshot for debugging: the renderer, the frame on screen, the film's
+A snapshot for debugging: the renderer, how the film plays (`backend`:
+`'webcodecs'` or `'video'`), the frame on screen, the film's
 position and the scroll's target in frames, travelling or not, the decoded
 frames, and the bytes and parts downloaded.
 

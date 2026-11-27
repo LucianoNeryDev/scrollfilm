@@ -26,8 +26,10 @@ const sizeOf = (src) => [
 ];
 
 // onLost runs when the GPU drops every texture (a reset, a tab long in the
-// background); the frames have to be decoded again.
-export function createRenderer(canvas, { onLost = () => {}, onRestored = () => {}, forceCanvas2d = false } = {}) {
+// background); the frames have to be decoded again. transparent: the canvas
+// is cleared to transparent at every draw, for a film shown by a <video>
+// under it, with only the overlays drawn here.
+export function createRenderer(canvas, { onLost = () => {}, onRestored = () => {}, forceCanvas2d = false, transparent = false } = {}) {
   let gl = null, crop = null, alpha = null;
   const spare = [];
   let images = new WeakMap(); // overlay images -> their textures
@@ -35,7 +37,7 @@ export function createRenderer(canvas, { onLost = () => {}, onRestored = () => {
 
   function start() {
     gl = forceCanvas2d ? null : canvas.getContext('webgl2', {
-      alpha: false, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance',
+      alpha: transparent, antialias: false, depth: false, stencil: false, powerPreference: 'high-performance',
     });
     if (!gl) return false;
     const shader = (type, src) => {
@@ -55,8 +57,9 @@ export function createRenderer(canvas, { onLost = () => {}, onRestored = () => {
     gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0);
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    gl.clearColor(0, 0, 0, 1);
+    // Colour blends by alpha; alpha adds up, as a premultiplied canvas wants.
+    gl.blendFuncSeparate(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    gl.clearColor(0, 0, 0, transparent ? 0 : 1);
     crop = gl.getUniformLocation(prog, 'crop');
     alpha = gl.getUniformLocation(prog, 'alpha');
     return true;
@@ -119,7 +122,7 @@ export function createRenderer(canvas, { onLost = () => {}, onRestored = () => {
         else gl.deleteTexture(tex);
       },
       begin(fit) {
-        if (fit === 'contain') { gl.viewport(0, 0, canvas.width, canvas.height); gl.clear(gl.COLOR_BUFFER_BIT); }
+        if (fit === 'contain' || transparent) { gl.viewport(0, 0, canvas.width, canvas.height); gl.clear(gl.COLOR_BUFFER_BIT); }
       },
       draw,
       // An image of the page's (an <img>, a bitmap, a canvas) over the frame,
@@ -146,7 +149,7 @@ export function createRenderer(canvas, { onLost = () => {}, onRestored = () => {
     };
   }
 
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext('2d', { alpha: transparent });
   const draw = (img, w, h, a, fit) => {
     const r = fitRect(canvas.width, canvas.height, w, h, fit);
     ctx.globalAlpha = a;
@@ -162,7 +165,10 @@ export function createRenderer(canvas, { onLost = () => {}, onRestored = () => {
       return c.transferToImageBitmap();
     },
     release(bm) { bm.close?.(); },
-    begin(fit) { if (fit === 'contain') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); } },
+    begin(fit) {
+      if (transparent) ctx.clearRect(0, 0, canvas.width, canvas.height);
+      else if (fit === 'contain') { ctx.fillStyle = '#000'; ctx.fillRect(0, 0, canvas.width, canvas.height); }
+    },
     draw,
     image(img, a, fit) { const [w, h] = sizeOf(img); draw(img, w, h, a, fit); },
     forget() {},
