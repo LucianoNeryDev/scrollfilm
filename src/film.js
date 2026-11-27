@@ -26,6 +26,7 @@ export const DEFAULTS = Object.freeze({
   held: 150, // ms frames may sit in the decoder with nothing out before it is flushed
   fast: [2, 4], // frames a refresh: from the second only keyframes are decoded, below the first frame by frame
   blend: 16, // frames apart, at most, for two frames to be blended
+  settle: 120, // ms the scroll stands still before the film comes to rest on a whole frame
   loads: 3, // parts downloading at once
   tries: 5, // downloads of a part before the film plays without it
   reducedMotion: typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
@@ -52,7 +53,9 @@ export class Film {
     this.goal = 0; // where the scroll is, 0 to 1
     this.view = -1; // the film's position on screen, in frames
     this.speed = 0; // frames a second
-    this.target = 0;
+    this.target = 0; // where the film is heading, in frames: a whole frame once the scroll stands still
+    this.aim = -1; // where the scroll is, in frames
+    this.stillSince = 0;
     this.travelling = false;
     this.heading = 1;
     this.stride = 1; // frames the film crosses a refresh
@@ -177,7 +180,13 @@ export class Film {
     if (!s) return false;
     const o = this.o;
     const before = this.view;
-    this.target = framePos(s.times, this.goal);
+    // While the scroll moves, the film follows it between frames, blending
+    // the two either side. Once the scroll stands still it comes to rest on
+    // the nearest whole frame, which is always decoded: a film at rest shows
+    // one sharp frame, never two blended.
+    const aim = framePos(s.times, this.goal);
+    if (aim !== this.aim) { this.aim = aim; this.stillSince = now; }
+    this.target = now - this.stillSince >= o.settle ? Math.round(aim) : aim;
     if (this.view < 0 || o.reducedMotion) {
       this.view = this.target;
       this.speed = 0;
@@ -332,12 +341,14 @@ export class Film {
     if (stride >= o.fast[1]) this.hopping = true;
     else if (stride <= o.fast[0]) this.hopping = false;
     if (this.hopping) { this.hopKeys(center, dir); return; }
-    // The frame wanted first: nearest the playhead, ahead before behind.
-    // Frames the decoder went past without keeping are not worth starting
-    // over for while the screen can blend across them.
+    // The frame wanted first: the one the film comes to rest on, then the
+    // nearest the playhead, ahead before behind. Frames the decoder went past
+    // without keeping are not worth starting over for while the screen can
+    // blend across them, except the one at rest.
+    const rest = Number.isInteger(this.target) && Math.abs(this.target - this.view) < 2 ? this.target : -1;
     const wanted = (i) => i >= 0 && i < s.n && !this.decoded.has(i) && !this.pending.has(i) && s.ready(i)
-      && !(i <= this.fed && !this.needKey && this.covered(i));
-    let target = -1;
+      && !(i !== rest && i <= this.fed && !this.needKey && this.covered(i));
+    let target = wanted(rest) ? rest : -1;
     for (let k = 0; k <= o.ahead && target < 0; k++) {
       for (const i of k <= o.behind && k > 0 ? [center + k * stride * dir, center - k * dir] : [center + k * stride * dir]) {
         if (wanted(i)) { target = i; break; }

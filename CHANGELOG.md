@@ -16,6 +16,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - CI runs on pushes to `master`, the default branch.
 
+## [Unreleased]
+
+### Added
+
+- `settle` option: how long the scroll must stand still before the film comes
+  to rest on a whole frame (120 ms).
+
+### Fixed
+
+- A film at rest showed two frames blended when the scroll stopped between
+  them, which looked blurred. It now comes to rest on the nearest whole frame,
+  decoded and drawn alone.
+
 ## [0.1.0] - 2026-11-26
 
 ### Added

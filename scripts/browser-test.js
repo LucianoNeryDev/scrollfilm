@@ -35,7 +35,12 @@ async function check(name, type, launch = {}, query = '') {
     const top = await page.evaluate(() => document.querySelector('.track').offsetTop);
     for (const p of [0.1, 0.35, 0.6, 0.9, 0.5, 0.2]) {
       await page.evaluate((y) => scrollTo(0, y), top + height * p);
-      await page.waitForFunction((goal) => Math.abs(window.film.time - goal) < 0.002 && window.film.state().position === window.film.state().target, p, { timeout: 40000 });
+      // At rest: on the whole frame nearest the scroll, drawn alone.
+      await page.waitForFunction((goal) => {
+        const f = window.film, s = f.state(), n = f.source.n;
+        return Math.abs(f.time - goal) <= 0.5 / (n - 1) + 1e-9 && s.position === s.target && Number.isInteger(s.position)
+          && s.frame === s.position && f.stats.mix === 0;
+      }, p, { timeout: 40000 });
       const s = await page.evaluate(() => window.film.state());
       seen.add(s.frame);
     }
