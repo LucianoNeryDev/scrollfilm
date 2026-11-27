@@ -1,6 +1,6 @@
 {
   "name": "scrollfilm",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Scroll-scrubbed video for the web: H.264 decoded with WebCodecs around the playhead, drawn with WebGL, smooth on low-end phones.",
   "type": "module",
   "exports": {
