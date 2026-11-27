@@ -105,6 +105,25 @@ When the scroll is more than 240 frames ahead (a long flick, a link to a
 chapter), the film travels faster, through keyframes. It blends frames up to
 16 apart.
 
+## At rest, one sharp frame
+
+Between two frames the film shows both, blended by where it is between them.
+That is what makes slow motion smooth, but a blend is two pictures at once.
+When the scroll stopped between frames, the film used to stay there: at
+frame 59.9 it showed frame 60 over frame 59 at 90%, and every edge was
+doubled. After a fast scroll it could also rest between two frames a few
+apart, because the decoder had gone past the frames in between without
+keeping them.
+
+Now, once the scroll has stood still for 120 ms (`settle`), the film's target
+becomes the nearest whole frame. The spring carries it there, at most half a
+frame, and the decoder fetches that exact frame first, even when it has to
+start again from a keyframe. A film at rest always shows a single frame. The
+browser test checks this in every engine: after each scroll it waits for the
+film to rest on a whole frame, drawn alone.
+
+## Frames, not scroll distance
+
 The position is counted in frames, not in scroll distance. A timeline can
 give a slow stretch of the film more scroll (see `times` in the
 [format](format.md)), so equal distances in frames are equal amounts of change

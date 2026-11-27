@@ -39,6 +39,7 @@ Options (all optional, defaults in `DEFAULTS`):
 | `hold` | `3` | The widest gap, in frames, the film blends across. At a wider gap it waits for the decoder instead. |
 | `ahead`, `behind` | `14`, `4` on phones; `22`, `6` otherwise | Frames kept decoded ahead of and behind the playhead. `ahead` is multiplied by the current stride. |
 | `blend` | `16` | The furthest apart two frames may be and still be blended. |
+| `settle` | `120` | Milliseconds the scroll must stand still before the film comes to rest on the nearest whole frame. |
 | `queue`, `keyQueue` | `6`, `3` | Frames given to the decoder and not yet out, cruising and travelling. |
 | `jump` | `24` | Further ahead than this, the decoder skips to the keyframe before the frame wanted. |
 | `held` | `150` | Milliseconds frames may wait in the decoder, with nothing coming out, before it is flushed. |
@@ -109,7 +110,7 @@ Stops decoding, frees the textures and closes the decoder.
 
 | Property | Meaning |
 |---|---|
-| `film.frame` | The frame on screen (the nearer one when two are blended), or −1 before the first draw. |
+| `film.frame` | The frame on screen (the nearer one when two are blended), or −1 before the first draw. At rest it is the only one. |
 | `film.time` | The film's position on screen, 0 to 1. It lags the scroll while the film glides, so tie captions to it to keep them in step with the picture. |
 | `film.goal` | The scroll position last given to `seek()`. |
 | `film.progress` | `{ got, total, done }`: bytes downloaded, bytes in the film, and whether every part has settled. |
