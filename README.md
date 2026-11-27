@@ -105,6 +105,8 @@ npm run demo          # http://localhost:5173/demo/
 Add `?debug` to the demo's address to expose the player as `window.film`.
 `npm run build:site` puts the demo in `site/` as a static site; a film in
 `site/film/portrait/` and `site/film/landscape/` gets one per orientation.
+The scripts go in a folder named by a hash of their content, so they can be
+cached for long and a new release still reaches every visitor.
 
 ## Tests
 
