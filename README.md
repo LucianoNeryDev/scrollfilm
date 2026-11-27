@@ -44,7 +44,7 @@ The cost is lag. After a fast scroll the film trails it by up to a second
 going forward, and one to two seconds going back, because the phone decodes
 about 120 frames a second.
 
-The [how it works](docs/how-it-works.md) page explains what each change fixed
+The [how it works](https://git.lucianonery.dev/LucianoNeryDev/scrollfilm/src/branch/master/docs/how-it-works.md) page explains what each change fixed
 and how it was measured.
 
 ## Quick start
@@ -53,7 +53,7 @@ You need ffmpeg (with libx264) to encode, and a browser with WebCodecs to
 play: Chrome or Edge 94, Safari 16.4, Firefox 130, or later.
 
 ```sh
-npm install git+https://git.lucianonery.dev/LucianoNeryDev/scrollfilm.git
+npm install scrollfilm
 npx scrollfilm encode flythrough.mp4 public/film --width 1280
 ```
 
@@ -83,13 +83,13 @@ with a value from 0 to 1 and then `film.update()` on every animation frame.
 
 ## Documentation
 
-- [API](docs/api.md): the `Film` class, its options and its hooks (overlays,
+- [API](https://git.lucianonery.dev/LucianoNeryDev/scrollfilm/src/branch/master/docs/api.md): the `Film` class, its options and its hooks (overlays,
   progress, a source per orientation).
-- [Encoder](docs/encoder.md): the `scrollfilm encode` options and how to
+- [Encoder](https://git.lucianonery.dev/LucianoNeryDev/scrollfilm/src/branch/master/docs/encoder.md): the `scrollfilm encode` options and how to
   choose a size, quality and keyframe interval.
-- [How it works](docs/how-it-works.md): decoding around the playhead,
+- [How it works](https://git.lucianonery.dev/LucianoNeryDev/scrollfilm/src/branch/master/docs/how-it-works.md): decoding around the playhead,
   keyframe travel, the sticky spring, and the measurements behind each choice.
-- [Film format](docs/format.md): the manifest and the parts, for writing your
+- [Film format](https://git.lucianonery.dev/LucianoNeryDev/scrollfilm/src/branch/master/docs/format.md): the manifest and the parts, for writing your
   own encoder.
 
 ## Demo
