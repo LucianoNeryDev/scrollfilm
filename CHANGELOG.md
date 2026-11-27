@@ -5,6 +5,16 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- The demo site could go on running the previous release's scripts for hours,
+  where the host told browsers to keep `.js` files (Firefox for Android kept
+  showing the old "needs WebCodecs" error after 0.3.0). `npm run build:site`
+  now puts the scripts and the library in a folder named by a hash of their
+  content, so each change has new addresses.
+
 ## [0.3.0] - 2026-11-27
 
 ### Added
