@@ -28,7 +28,7 @@ scrollfilm keeps the film as H.264 and decodes it itself with
 ## Measured on a Galaxy A14
 
 These numbers come from real finger swipes (`adb shell input swipe`) on a
-low-end Android phone (Helio G85, 60 Hz), with the Residenza Vela film at
+low-end Android phone (Helio G80, 60 Hz), with the Residenza Vela film at
 864×1536.
 
 "Before" is the same H.264 film when the player decoded every frame the scroll

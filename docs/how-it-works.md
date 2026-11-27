@@ -4,7 +4,7 @@ scrollfilm was built for the
 [Residenza Vela](https://residenza-vela.lucianonery.dev) tour, a 2,399-frame
 fly-through rendered in Blender and played over twelve screens of scrolling.
 The target device was a Galaxy A14: a low-end Android phone (MediaTek Helio
-G85, 60 Hz screen) that many people actually own. Every choice below was
+G80, 60 Hz screen) that many people actually own. Every choice below was
 measured on it.
 
 The measurements used real finger swipes (`adb shell input swipe`), not
