@@ -3,6 +3,7 @@
 // runs past what is decoded. docs/how-it-works.md explains the choices and
 // the measurements behind them.
 import { createRenderer } from './renderer.js';
+import { openSeeker, seekerSupported } from './seeker.js';
 import { openSource, resolveSource } from './source.js';
 import {
   bracket, clamp, decodedAhead, firstKey, framePos, keyBefore, spring, timeAt,
@@ -30,15 +31,33 @@ export const DEFAULTS = Object.freeze({
   loads: 3, // parts downloading at once
   tries: 5, // downloads of a part before the film plays without it
   reducedMotion: typeof matchMedia !== 'undefined' && matchMedia('(prefers-reduced-motion: reduce)').matches,
+  groups: 8, // without WebCodecs: groups of pictures kept in the video's buffer
   forceCanvas2d: false,
+  forceVideo: false, // play through a <video> even where WebCodecs is there (for testing)
   debug: false,
 });
 
-// Whether this browser can play the film: WebCodecs with this codec.
-export async function supported(src) {
-  if (typeof VideoDecoder === 'undefined') return false;
+// How this browser decodes a film: 'webcodecs', 'video' (Media Source
+// Extensions and a <video>, where VideoDecoder is missing, as in Firefox for
+// Android), or null when it can't.
+export async function playback(src) {
   try {
     const { video } = await resolveSource(src);
+    if (await webcodecs(video)) return 'webcodecs';
+    return seekerSupported(video) ? 'video' : null;
+  } catch {
+    return null;
+  }
+}
+
+// Whether this browser can play the film, one way or the other.
+export async function supported(src) {
+  return (await playback(src)) !== null;
+}
+
+async function webcodecs(video) {
+  if (typeof VideoDecoder === 'undefined') return false;
+  try {
     const r = await VideoDecoder.isConfigSupported({ codec: video.codec, codedWidth: video.width, codedHeight: video.height });
     return r.supported;
   } catch {
@@ -73,6 +92,8 @@ export class Film {
     this.decoded = new Map(); // frame -> texture
     this.pending = new Set(); // frames given to the decoder and not out yet
     this.decoder = null;
+    this.seeker = null; // without WebCodecs
+    this.backend = null; // 'webcodecs' or 'video'
     this.decoderSource = null;
     this.fed = -1;
     this.flushing = false;
@@ -86,11 +107,8 @@ export class Film {
     this.shown = -1;
     this.last = 0;
     this.has = (i) => this.decoded.has(i);
-    this.renderer = createRenderer(canvas, {
-      forceCanvas2d: this.o.forceCanvas2d,
-      onLost: () => { this.decoded.clear(); },
-      onRestored: () => { this.dirty = true; },
-    });
+    this.renderer = null; // made by load(), once it is known how the film plays
+    this.videoFrame = -1; // without WebCodecs: the frame the video shows
     if (typeof ResizeObserver !== 'undefined') {
       this.resizer = new ResizeObserver(() => this.resize());
       this.resizer.observe(canvas);
@@ -102,6 +120,15 @@ export class Film {
   // show as soon as their part is in.
   async load(src) {
     const resolved = await resolveSource(src, { cache: 'no-cache' });
+    this.backend ??= !this.o.forceVideo && await webcodecs(resolved.video) ? 'webcodecs' : 'video';
+    // Played by a <video>, the film shows through a transparent canvas that
+    // only draws the overlays.
+    this.renderer ??= createRenderer(this.canvas, {
+      forceCanvas2d: this.o.forceCanvas2d,
+      transparent: this.backend === 'video',
+      onLost: () => { this.decoded.clear(); },
+      onRestored: () => { this.dirty = true; },
+    });
     let source = this.sources.get(resolved.base);
     if (!source) {
       source = openSource(resolved, {
@@ -195,7 +222,11 @@ export class Film {
       this.travelling = gap > o.far || (this.travelling && gap > o.far / 4);
       // Cruising, the film slows as it nears the last frame decoded ahead,
       // so it eases into a wait instead of stopping dead.
-      const room = this.travelling ? Infinity : decodedAhead(this.has, this.view, Math.sign(this.target - this.view), o.hold, s.n);
+      const dir = Math.sign(this.target - this.view);
+      // Played by a video, the film keeps within `ahead` frames of the picture going forward.
+      const room = this.travelling ? Infinity
+        : this.seeker ? (dir > 0 && this.videoFrame >= 0 ? this.videoFrame + o.ahead - this.view : Infinity)
+          : decodedAhead(this.has, this.view, dir, o.hold, s.n);
       const most = this.travelling ? o.travel * 60 : Math.min(o.cruise * 60, Math.max(0, room) * 10);
       [this.view, this.speed] = spring(this.view, this.speed, this.target, dt, o.stiffness, most);
     }
@@ -203,8 +234,10 @@ export class Film {
     const step = before < 0 ? 0 : this.view - before;
     if (step) this.heading = Math.sign(step);
     this.stride = clamp(Math.round(Math.abs(step)), 1, 16);
-    this.time = timeAt(s.times, this.view);
+    // A video shows the frame it last seeked to: captions follow that.
+    this.time = timeAt(s.times, this.seeker && this.videoFrame >= 0 ? this.videoFrame : this.view);
     if (!this.active) return false;
+    if (this.seeker) this.placeSurface();
 
     // The decoder is kept going at every refresh: the film may be waiting
     // for it, with nothing else changing.
@@ -217,6 +250,7 @@ export class Film {
 
   draw(now) {
     const s = this.source, o = this.o, x = this.view;
+    if (this.seeker) return this.drawOver(now);
     // The two decoded frames either side, blended by where the film is
     // between them. Too far apart they read as a double image: the nearer alone.
     let [a, b] = bracket(this.has, x, o.ahead * this.stride + o.behind);
@@ -243,6 +277,57 @@ export class Film {
     return true;
   }
 
+  // A video shows the film: only the overlays are drawn, on a clear canvas.
+  drawOver(now) {
+    const showing = this.videoFrame;
+    if (showing < 0) return false;
+    const r = this.renderer, o = this.o;
+    r.begin(o.fit);
+    const info = { frame: showing, position: this.view, time: this.time, target: this.target };
+    this.overlay?.((img, alpha = 1, fit = o.fit) => r.image(img, alpha, fit), info);
+    if (this.stats) {
+      if (showing !== this.frame) this.stats.drawn++;
+      this.stats.mix = 0;
+      this.stats.log?.push([Math.round(now), +this.view.toFixed(2), showing, showing, 0, this.heading, this.seeker.busy ? 1 : 0, this.hopping ? 1 : 0, +this.target.toFixed(2)]);
+    }
+    this.frame = showing;
+    this.onDraw?.(info);
+    return true;
+  }
+
+  // The video goes right under the canvas, the same size and in the same
+  // place, so the page's layout and stacking hold it as they hold the canvas.
+  placeSurface() {
+    const v = this.seeker.el, c = this.canvas, st = v.style;
+    if (v.nextElementSibling !== c) {
+      c.before(v);
+      st.cssText = 'display:block;pointer-events:none;object-position:50% 50%;background:#000;margin:0';
+      c.style.background = 'transparent';
+    }
+    const cs = getComputedStyle(c);
+    if (cs.position === 'static') c.style.position = 'relative';
+    const set = (k, val) => { if (st[k] !== val) st[k] = val; };
+    const pos = getComputedStyle(c).position;
+    set('objectFit', this.o.fit);
+    set('width', `${c.offsetWidth}px`);
+    set('height', `${c.offsetHeight}px`);
+    if (pos === 'relative') {
+      set('position', 'absolute');
+      set('left', `${c.offsetLeft}px`);
+      set('top', `${c.offsetTop}px`);
+    } else {
+      // sticky, fixed or absolute: the same rules; in the flow (sticky), it
+      // takes no room.
+      set('position', pos);
+      for (const k of ['top', 'right', 'bottom', 'left']) set(k, cs[k]);
+      set('marginBottom', pos === 'sticky' ? `${-c.offsetHeight}px` : '0px');
+    }
+    set('transform', cs.transform === 'none' ? '' : cs.transform);
+    set('transformOrigin', cs.transformOrigin);
+    set('opacity', cs.opacity);
+    set('visibility', cs.visibility);
+  }
+
   // ---------- decoding ----------
   // One VideoDecoder (hardware where there is one) runs ahead of the film:
   // forward it is fed frame after frame; going back or jumping, it goes on
@@ -250,13 +335,33 @@ export class Film {
   // once and handed back: hardware decoders stall when their frames are kept.
 
   forget() {
-    for (const tex of this.decoded.values()) this.renderer.release(tex);
+    for (const tex of this.decoded.values()) this.renderer?.release(tex);
     this.decoded.clear();
   }
 
   startDecoder(source) {
     if (this.decoder && this.decoder.state !== 'closed') this.decoder.close();
+    this.seeker?.close();
     this.decoderSource = source;
+    if (this.backend === 'video') {
+      // Hardware-decoded video can't be read back on every browser (Firefox
+      // for Android draws it black into a canvas or a texture), so the video
+      // itself is on screen, under the canvas.
+      this.videoFrame = -1;
+      this.seeker = openSeeker(source, {
+        groups: this.o.groups,
+        onFrame: (i) => {
+          if (this.stats) this.stats.decoded++;
+          if (source === this.decoderSource) this.videoFrame = i;
+          this.dirty = true;
+        },
+        onError: (e) => {
+          if (this.stats) this.stats.error = String(e);
+          this.onError?.(e);
+        },
+      });
+      return;
+    }
     this.fed = -1;
     this.pending.clear();
     this.flushing = false;
@@ -324,6 +429,9 @@ export class Film {
       this.renderer.release(tex);
       this.decoded.delete(i);
     }
+    if (stride >= o.fast[1]) this.hopping = true;
+    else if (stride <= o.fast[0]) this.hopping = false;
+    if (this.seeker) { this.seekNext(center, dir); return; }
     const d = this.decoder;
     if (!d || d.state !== 'configured' || this.flushing) return;
     // Some decoders hold their last frames until more come or they are
@@ -338,14 +446,12 @@ export class Film {
       });
       return;
     }
-    if (stride >= o.fast[1]) this.hopping = true;
-    else if (stride <= o.fast[0]) this.hopping = false;
     if (this.hopping) { this.hopKeys(center, dir); return; }
     // The frame wanted first: the one the film comes to rest on, then the
     // nearest the playhead, ahead before behind. Frames the decoder went past
     // without keeping are not worth starting over for while the screen can
     // blend across them, except the one at rest.
-    const rest = Number.isInteger(this.target) && Math.abs(this.target - this.view) < 2 ? this.target : -1;
+    const rest = this.restFrame();
     const wanted = (i) => i >= 0 && i < s.n && !this.decoded.has(i) && !this.pending.has(i) && s.ready(i)
       && !(i !== rest && i <= this.fed && !this.needKey && this.covered(i));
     let target = wanted(rest) ? rest : -1;
@@ -367,6 +473,36 @@ export class Film {
     while (this.pending.size < o.queue && this.fed < end && s.ready(this.fed + 1)) this.feed(this.fed + 1);
   }
 
+  // The frame the film is coming to rest on, or -1 while it moves.
+  restFrame() {
+    return Number.isInteger(this.target) && Math.abs(this.target - this.view) < 2 ? this.target : -1;
+  }
+
+  // Without WebCodecs. Going forward the video plays, its rate following
+  // the film (a playing video decodes far faster than it seeks: on a
+  // Galaxy A14, Firefox managed about 8 seeks a second). Going back,
+  // travelling, or close to where the film is heading, it pauses and seeks:
+  // to the frame the film comes to rest on, to the frame it is on, or when
+  // travelling to the next keyframe, which decodes on its own.
+  seekNext(center, dir) {
+    const k = this.seeker, keys = this.decoderSource.keyList;
+    if (k.playing && k.frame !== this.videoFrame) { this.videoFrame = k.frame; this.dirty = true; }
+    const shown = this.videoFrame;
+    const rest = this.restFrame();
+    const goal = rest >= 0 ? rest : this.target;
+    if (shown >= 0 && !this.travelling && !this.hopping && goal - shown > 3) {
+      // Frames a second: the film's own speed, plus catching up with it.
+      const lead = this.view - shown;
+      k.run((Math.max(0, this.speed) + 4 * Math.max(0, lead)) / 30);
+      return;
+    }
+    k.stop();
+    if (k.busy) return;
+    let i = rest >= 0 ? rest : center;
+    if (rest < 0 && this.hopping) i = keys[clamp(firstKey(keys, center, dir), 0, keys.length - 1)];
+    if (i !== shown) k.want(i);
+  }
+
   // Travelling: only the keyframes ahead, nearest first. Each stands alone,
   // so this works in both directions.
   hopKeys(center, dir) {
@@ -383,7 +519,7 @@ export class Film {
   state() {
     const s = this.source;
     return {
-      renderer: this.renderer.kind, frame: this.frame, position: this.view, target: this.target, time: this.time,
+      renderer: this.renderer?.kind, backend: this.backend, frame: this.frame, position: this.view, target: this.target, time: this.time,
       travelling: this.travelling, hopping: this.hopping, stride: this.stride, pending: this.pending.size, fed: this.fed,
       decoder: this.decoder?.state, decoded: [...this.decoded.keys()].sort((p, q) => p - q),
       got: s?.got ?? 0, total: s?.total ?? 0, parts: s ? s.parts.map((p) => p.state) : [],
@@ -394,8 +530,9 @@ export class Film {
     this.active = false;
     this.resizer?.disconnect();
     if (this.decoder && this.decoder.state !== 'closed') this.decoder.close();
+    this.seeker?.close();
     this.forget();
     for (const s of this.sources.values()) s.closed = true;
-    this.renderer.destroy();
+    this.renderer?.destroy();
   }
 }

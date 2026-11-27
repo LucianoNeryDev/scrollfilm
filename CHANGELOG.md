@@ -5,6 +5,20 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Playback without WebCodecs, for Firefox for Android: the film's parts go
+  through Media Source Extensions to a `<video>` placed under the canvas,
+  which plays forward and seeks back. `playback(source)` says which way a
+  browser plays a film; `forceVideo` and `groups` options;
+  `film.state().backend`.
+
+### Changed
+
+- `supported()` is also `true` where only the `<video>` path works.
+
 ## [0.2.0] - 2026-11-27
 
 ### Added

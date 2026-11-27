@@ -11,7 +11,7 @@ const bar = document.querySelector('.bar span');
 const notes = [...document.querySelectorAll('.notes p')].map((el) => ({ el, at: el.dataset.at.split(' ').map(Number) }));
 const hud = Object.fromEntries(['frame', 'decoded', 'mode', 'renderer'].map((k) => [k, document.querySelector(`.h-${k}`)]));
 
-const film = new Film(canvas, { debug: params.has('debug'), forceCanvas2d: params.has('canvas2d') });
+const film = new Film(canvas, { debug: params.has('debug'), forceCanvas2d: params.has('canvas2d'), forceVideo: params.has('video') });
 if (params.has('debug')) window.film = film;
 
 const orientation = () => (innerWidth < innerHeight ? 'portrait' : 'landscape');
@@ -46,14 +46,14 @@ film.onDraw = ({ frame, time }) => {
   hud.frame.textContent = `${frame + 1} / ${film.source.n}`;
   hud.decoded.textContent = s.decoded.length;
   hud.mode.textContent = s.travelling ? 'travel' : s.target === s.position ? 'still' : 'glide';
-  hud.renderer.textContent = s.renderer;
+  hud.renderer.textContent = `${s.renderer}, ${s.backend}`;
   for (const n of notes) n.el.classList.toggle('is-on', time >= n.at[0] && time <= n.at[1]);
 };
 
 (async () => {
   const src = await sourceFor(orientation());
   if (!(await supported(src))) {
-    fail('This browser can’t play the film: it needs WebCodecs (Chrome 94, Safari 16.4, Firefox 130 or later).');
+    fail('This browser can’t play the film: it needs WebCodecs or Media Source Extensions with H.264.');
     return;
   }
   fetch('film/credits.txt').then((r) => (r.ok ? r.text() : '')).then((t) => {

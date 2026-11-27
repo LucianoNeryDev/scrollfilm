@@ -157,3 +157,39 @@ devices that decode faster.
 - **Parts.** Cloudflare Pages takes files up to 25 MiB, so the film is cut
   into parts of at most 16 MiB. Each part's frames are counted as they
   stream in, so a loading screen can follow the download byte by byte.
+
+## Without WebCodecs: Firefox for Android
+
+Firefox for Android has no `VideoDecoder`, though desktop Firefox has had it
+since version 130. It does have Media Source Extensions, and it plays H.264
+in hardware. So where `VideoDecoder` is missing, the same parts go to a
+`<video>`: the player wraps each group of pictures (a keyframe and the frames
+up to the next) in an MP4 fragment as it is needed, and keeps only a few in
+the video's buffer.
+
+The first version copied the video's frames into textures, as with
+WebCodecs. On the A14, Firefox drew them black: a hardware-decoded video goes
+straight to the compositor, and `drawImage`, `texImage2D`,
+`createImageBitmap` and `new VideoFrame(video)` all came back black or
+broken. So the video itself is on screen, right under the canvas, which stays
+transparent and draws only the overlays.
+
+Seeking was the next limit: Firefox on the A14 managed about 8 seeks a
+second, even to keyframes, so a film that seeked to every frame showed 7–11
+new pictures a second. A playing video decodes frame after frame much faster.
+Going forward the video now plays, at a rate that follows the film, and the
+film keeps within 14 frames of the picture. Close to where the film is
+heading, the video pauses and seeks to the exact frame. Going back it can only
+seek.
+
+Measured with real swipes on the A14, in Firefox 160:
+
+| Swipe | New pictures a second | Biggest jump | At rest |
+|---|---|---|---|
+| slow drag | 13–32 | 4 frames | the exact frame, 3 of 3 |
+| medium flick | 28–34 | 16 frames | 3 of 3 |
+| fast flick | 22–26 (through keyframes) | 96 frames | 2 of 2 |
+| drag back, flick back | 5–9 | 33 frames | 5 of 5 |
+
+With WebCodecs, in Chrome on the same phone, the film draws a new picture at
+almost every refresh in both directions.
